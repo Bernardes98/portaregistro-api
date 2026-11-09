@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: portaregistro
+      POSTGRES_USER: portaregistro
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?configure a strong DB_PASSWORD in .env}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portaregistro -d portaregistro"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+    networks: [internal]
+
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/portaregistro
+      DB_USER: portaregistro
+      DB_PASSWORD: ${DB_PASSWORD:?configure a strong DB_PASSWORD in .env}
+      APP_ORIGIN: ${APP_ORIGIN:-https://portaregistro.com.br}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      BOOTSTRAP_EMAIL: ${BOOTSTRAP_EMAIL:?configure the SaaS admin email}
+      BOOTSTRAP_PASSWORD: ${BOOTSTRAP_PASSWORD:?configure the SaaS admin password}
+      MAIL_FROM: ${MAIL_FROM:?configure the sending address}
+      SMTP_HOST: ${SMTP_HOST:?configure your SMTP host}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:?configure your SMTP user}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?configure your SMTP password}
+      SMTP_AUTH: "true"
+      SMTP_TLS: "true"
+    depends_on:
+      db: {condition: service_healthy}
+    expose: ["8080"]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/api/health | grep -q UP"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  database:
+
+networks:
+  internal:
